@@ -1,0 +1,29 @@
+{
+  "trained_on": "extractor features (Path A), all multi-session pcaps",
+  "rows": 1287234,
+  "n_features": 73,
+  "scaler": "NONE (DecisionTree is scale-invariant; preprocessing = feature engineering + NaN/inf->0)",
+  "pipeline": [
+    "raw 46 features",
+    "fast_transform.build_matrix(df, feature_list)",
+    "model.predict",
+    "label_encoder.inverse_transform"
+  ],
+  "pi_files_needed": [
+    "src/config.py",
+    "src/feature_engineering.py",
+    "src/fast_transform.py",
+    "src/deploy/predict.py",
+    "artifacts/models/pathA/pathA_dtree_8class.joblib (or 34class)",
+    "artifacts/models/pathA/label_encoder_8.joblib (or 34)",
+    "artifacts/models/pathA/feature_list.json"
+  ],
+  "caveat": "Attack-TYPE classifier. Benign does NOT generalize across networks (cross-capture benign ~14%); calibrate benign on the deployment network.",
+  "files": [
+    "pathA_dtree_34class.joblib",
+    "label_encoder_34.joblib",
+    "pathA_dtree_8class.joblib",
+    "label_encoder_8.joblib",
+    "feature_list.json"
+  ]
+}

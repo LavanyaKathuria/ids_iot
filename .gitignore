@@ -1,0 +1,22 @@
+# ===== Large data — NEVER push (GitHub rejects >100MB; these are GBs) =====
+CICIoT2023/
+pcap/
+*.pcap
+*.cap
+*.crdownload
+
+# ===== artifacts: ignore all, then allow only the small deployable bits =====
+artifacts/*
+!artifacts/models/
+artifacts/models/*
+!artifacts/models/pathA/
+!artifacts/reports/
+!artifacts/bench_flows.csv
+
+# the old published-data (IAT-artifact) models are not deployable
+artifacts/models/pathA/.gitkeep
+
+# ===== python =====
+__pycache__/
+*.pyc
+*.pyo

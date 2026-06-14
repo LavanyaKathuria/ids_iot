@@ -65,6 +65,45 @@ def to_binary(label: str) -> str:
     return "Benign" if label == BENIGN_LABEL else "Attack"
 
 
+# Merged scheme: DoS and DDoS subtypes are flow-indistinguishable (the DoS vs
+# DDoS split did NOT generalise across capture sessions — see the cross-capture
+# test), so they are collapsed into one "Flood" category.
+def to_category_merged(label: str) -> str:
+    cat = CLASS_TO_CATEGORY[label]
+    return "Flood" if cat in ("DDoS", "DoS") else cat
+
+
+# Attack categories for the Stage-2 classifier (attacks only; benign handled by
+# the anomaly gate).
+ATTACK_CATEGORIES_MERGED = ["Flood", "Mirai", "Recon", "Spoofing", "Web", "BruteForce"]
+
+
+# Fine-grained scheme: keep ALL 34-class labels, but fold ONLY the DoS+DDoS
+# subtypes into a single 'Flood' label (they are flow-indistinguishable and do
+# not generalise across captures as separate classes). Everything else keeps its
+# individual class. -> 18 attack classes + Benign.
+def to_flood_merged(label: str) -> str:
+    cat = CLASS_TO_CATEGORY[label]
+    return "Flood" if cat in ("DDoS", "DoS") else label
+
+
+# Protocol-wise flood merge (max granularity): each DoS flood folds into its
+# matching DDoS flood by protocol; everything else stays as the original 34.
+# DoS-X_Flood + DDoS-X_Flood -> X_Flood  (X in UDP/SYN/TCP/HTTP). -> 30 classes.
+PROTO_FLOOD_MERGE = {
+    "DoS-UDP_Flood": "UDP_Flood",  "DDoS-UDP_Flood": "UDP_Flood",
+    "DoS-SYN_Flood": "SYN_Flood",  "DDoS-SYN_Flood": "SYN_Flood",
+    "DoS-TCP_Flood": "TCP_Flood",  "DDoS-TCP_Flood": "TCP_Flood",
+    "DoS-HTTP_Flood": "HTTP_Flood", "DDoS-HTTP_Flood": "HTTP_Flood",
+    # SynonymousIP is a SYN flood with spoofed source IPs -> not separable from SYN_Flood.
+    "DDoS-SynonymousIP_Flood": "SYN_Flood",
+}
+
+
+def to_proto_flood_merged(label: str) -> str:
+    return PROTO_FLOOD_MERGE.get(label, label)
+
+
 # ---------------------------------------------------------------------------
 # Sampling configuration.
 # ---------------------------------------------------------------------------

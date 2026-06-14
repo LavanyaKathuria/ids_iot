@@ -1,0 +1,20 @@
+{
+  "model": "DecisionTree",
+  "config": {
+    "max_depth": 35,
+    "min_samples_leaf": 5
+  },
+  "target": "label_34",
+  "n_classes": 34,
+  "n_features": 64,
+  "model_size_mb": 2.018682,
+  "metrics": {
+    "accuracy": 0.9704622570875053,
+    "balanced_accuracy": 0.8621097795207243,
+    "f1_macro": 0.8809352212308929,
+    "f1_weighted": 0.9702903884067435,
+    "precision_macro": 0.9091801676501129,
+    "recall_macro": 0.8621097795207243,
+    "train_s": 503.7158977985382
+  }
+}
