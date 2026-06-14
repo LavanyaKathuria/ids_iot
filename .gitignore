@@ -16,7 +16,8 @@ artifacts/models/*
 # the old published-data (IAT-artifact) models are not deployable
 artifacts/models/pathA/.gitkeep
 
-# ===== python =====
+# ===== python / notebooks =====
 __pycache__/
 *.pyc
 *.pyo
+.ipynb_checkpoints/
