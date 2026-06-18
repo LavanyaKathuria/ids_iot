@@ -16,6 +16,11 @@ artifacts/models/*
 # the old published-data (IAT-artifact) models are not deployable
 artifacts/models/pathA/.gitkeep
 
+# ===== generated at runtime (rebuildable) =====
+alerts.csv
+tests/alerts.csv
+tests/sample_traffic.pcap        # rebuild with tests/make_test_pcap.py (also covered by *.pcap)
+
 # ===== python / notebooks =====
 __pycache__/
 *.pyc

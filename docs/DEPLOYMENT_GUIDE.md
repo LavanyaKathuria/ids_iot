@@ -30,12 +30,13 @@ and view alerts on a monitor/computer.
 Use **Raspberry Pi OS 64-bit**. Match the training Python (3.11) if possible.
 ```bash
 sudo apt update && sudo apt install -y python3-pip tcpdump
-pip3 install --user scikit-learn pandas numpy joblib dpkt
-# only if you will re-calibrate the gate ON the Pi:
-pip3 install --user imbalanced-learn       # (calibration needs only sklearn, this is optional)
+pip3 install --user -r requirements.txt
 ```
-> Keep `scikit-learn` the **same major version** as training (the models were
-> saved with scikit-learn 1.8). A very different version may fail to unpickle.
+`requirements.txt` is grouped: the Pi needs the **runtime + capture + dashboard**
+groups; you can delete the **training** group (`imbalanced-learn`, `scipy`) from
+the file before installing on the Pi — it isn't used for inference.
+> `scikit-learn` is pinned to **1.8.0** because the `.joblib` models were pickled
+> with it; a different version may fail to unpickle. Keep that pin.
 
 ### A3. Files to copy to the Pi (keep this folder layout)
 ```
@@ -81,50 +82,24 @@ PY
 > The baseline window must be genuinely clean — a baseline containing attacks
 > teaches the gate to accept them.
 
-### A5. Live runner (`ids_runner.py` — create this on the Pi)
-tcpdump rotates short pcap files; the runner processes each closed file and
-appends anomalies to `alerts.csv`.
-```python
-# ids_runner.py  — capture-rotate-infer loop
-import glob, os, time, subprocess, pandas as pd
-from pcap_to_features import extract_features
-from predict import IDSModel
-
-CAP_DIR, IFACE, ROTATE_SEC = "/tmp/ids_cap", "eth0", 10
-os.makedirs(CAP_DIR, exist_ok=True)
-ids = IDSModel(models_dir="models/pathA")
-
-# tcpdump: new file every ROTATE_SEC, keep last 6
-subprocess.Popen(["tcpdump","-i",IFACE,"-w",f"{CAP_DIR}/c_%Y%m%d_%H%M%S.pcap",
-                  "-G",str(ROTATE_SEC),"-W","6","-Z","root"])
-seen=set()
-while True:
-    files=sorted(glob.glob(f"{CAP_DIR}/c_*.pcap"))[:-1]   # skip the file being written
-    for f in files:
-        if f in seen: continue
-        seen.add(f)
-        try:
-            df = extract_features(f)
-            if len(df)==0: continue
-            det = ids.predict_detailed(df)
-            alerts = det[det.is_anomaly].copy()
-            if len(alerts):
-                alerts["ts"]=time.strftime("%Y-%m-%d %H:%M:%S")
-                alerts[["ts","label"]].to_csv("alerts.csv", mode="a",
-                        header=not os.path.exists("alerts.csv"), index=False)
-                print(time.strftime("%H:%M:%S"), "alerts:",
-                      alerts.label.value_counts().to_dict())
-        except Exception as e:
-            print("skip", f, e)
-        finally:
-            try: os.remove(f)
-            except: pass
-    time.sleep(2)
-```
-Run it:
+### A5. Live runner (`ids_runner.py` — ready in `src/deploy/`)
+Copy `src/deploy/ids_runner.py` to the Pi. It runs tcpdump to rotate short pcap
+files, then extracts → scores each closed file and appends anomalies to
+`alerts.csv` (columns `ts,label,source`).
 ```bash
-sudo python3 ids_runner.py        # sudo: tcpdump needs raw-socket access
+# LIVE capture (sudo: tcpdump needs raw-socket access)
+sudo python3 ids_runner.py --iface eth0 --models models/pathA
+
+# OFFLINE test — no live traffic needed: replay a pcap or a folder of pcaps
+python3 ids_runner.py --replay sample_traffic.pcap --models models/pathA
+python3 ids_runner.py --replay /captures/          # every *.pcap in a folder
 ```
+Options: `--rotate` (seconds per pcap, default 10), `--keep` (rotated files to
+keep), `--alerts` (output CSV), `--cap-dir` (capture scratch dir).
+
+> **Test the whole chain before you have live traffic** — see `tests/` and
+> `tests/README.md`: `python3 make_test_pcap.py` makes a synthetic capture, then
+> `--replay` it through the runner above.
 
 ### A6. Run on boot (systemd service)
 `/etc/systemd/system/ids.service`:
@@ -157,33 +132,21 @@ The runner writes `alerts.csv`. Pick a viewer:
 | **Grafana + InfluxDB** | medium | polished "wall display" / multiple Pis |
 | **`tail -f alerts.csv`** | none | quick demo / SSH terminal |
 
-### B1. Streamlit dashboard (recommended)
-Install on the computer/monitor (or the Pi): `pip install streamlit pandas`.
-Create `dashboard.py`:
-```python
-# dashboard.py  — run: streamlit run dashboard.py
-import pandas as pd, streamlit as st, time
-st.set_page_config(page_title="IoT IDS", layout="wide")
-st.title("🛡️ CICIoT2023 IoT IDS — live alerts")
-ALERTS = "alerts.csv"        # point at the Pi's alerts.csv (shared/NFS/scp-synced)
-while True:
-    try: df = pd.read_csv(ALERTS, names=["ts","label"], header=0)
-    except Exception: df = pd.DataFrame(columns=["ts","label"])
-    c1,c2,c3 = st.columns(3)
-    c1.metric("Total alerts", len(df))
-    c2.metric("Attack types seen", df.label.nunique() if len(df) else 0)
-    c3.metric("Last alert", df.ts.iloc[-1] if len(df) else "—")
-    st.subheader("Alerts by attack type")
-    if len(df): st.bar_chart(df.label.value_counts())
-    st.subheader("Recent alerts")
-    st.dataframe(df.tail(50).iloc[::-1], use_container_width=True)
-    time.sleep(3); st.rerun()
+### B1. Streamlit dashboard (recommended — ready in `src/deploy/`)
+The dashboard is `src/deploy/dashboard.py` (metrics, alerts-by-type bar chart,
+alerts-over-time line, recent-alerts table; auto-refresh). Install:
+`pip install streamlit pandas`.
+```bash
+# point it at the runner's alerts file and launch
+IDS_ALERTS=/home/pi/ids/alerts.csv streamlit run dashboard.py
+# open http://localhost:8501 full-screen on the monitor
 ```
-- Run on the monitor machine: `streamlit run dashboard.py` → open the shown URL
-  (e.g. `http://localhost:8501`) full-screen on the monitor.
-- Get `alerts.csv` to the monitor machine via a shared folder, an NFS/Samba mount
-  of the Pi, or a periodic `scp pi@<pi-ip>:/home/pi/ids/alerts.csv .`.
-- To run the dashboard **on the Pi** and view from any browser on the LAN:
+- Env vars: `IDS_ALERTS` (path to the alerts CSV, default `./alerts.csv`),
+  `IDS_REFRESH` (seconds between refreshes, default 3).
+- If the dashboard runs on a **different machine** than the Pi, get `alerts.csv`
+  to it via a shared/NFS/Samba mount or a periodic
+  `scp pi@<pi-ip>:/home/pi/ids/alerts.csv .`.
+- To run **on the Pi** and view from any browser on the LAN:
   `streamlit run dashboard.py --server.address 0.0.0.0` → `http://<pi-ip>:8501`.
 
 ### B2. Grafana + InfluxDB (polished alternative)

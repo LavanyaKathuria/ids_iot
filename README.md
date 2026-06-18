@@ -32,6 +32,7 @@ feature-engineering details, and the model bake-off are in
 ## Run it
 
 ```powershell
+pip install -r requirements.txt                 # setup (scikit-learn pinned to 1.8.0)
 python src/sample_data.py                       # build artifacts/sampled.parquet (~5.76M rows)
 python src/train.py                             # train + evaluate -> artifacts/models, artifacts/reports
 python src/deploy/predict.py artifacts/bench_flows.csv   # latency benchmark
@@ -39,26 +40,69 @@ python src/deploy/predict.py artifacts/bench_flows.csv   # latency benchmark
 
 ## Deploy on the Pi
 
+The **deployable** system is the two-stage **Path A** model (a benign anomaly
+gate calibrated on-site + a 28-class attack classifier) — it avoids the `IAT`
+artifact that makes the single-stage model non-portable. Full instructions:
+[`docs/DEPLOYMENT_GUIDE.md`](docs/DEPLOYMENT_GUIDE.md).
+
 Copy `src/config.py`, `src/feature_engineering.py`, `src/fast_transform.py`,
-`src/deploy/predict.py`, and `artifacts/models/` to the Pi; install
-`scikit-learn pandas numpy joblib`.
+`src/extractor/pcap_to_features.py`, `src/deploy/predict.py`,
+`src/deploy/ids_runner.py`, and `artifacts/models/pathA/` to the Pi, then
+`pip install -r requirements.txt` (`scikit-learn` is pinned to 1.8.0 so the saved
+models unpickle).
 
 ```python
 from predict import IDSModel
-model = IDSModel()
-labels = model.predict(flow_df)        # flow_df = raw 46 CICIoT2023 columns
-proba  = model.predict_proba(flow_df)
+ids = IDSModel(models_dir="models/pathA")   # 28 attack classes + benign gate
+ids.calibrate_benign(local_benign_df)       # ON-SITE: tune the gate to this network
+labels = ids.predict(flow_df)               # 'BenignTraffic' or an attack name
 ```
 
-The Pi uses a numpy fast-path (`fast_transform.py`) that reproduces the training
-features bit-for-bit while keeping single-flow latency ~1.3 ms.
+Live capture loop: `sudo python3 ids_runner.py --iface eth0` (tcpdump → extract →
+score → `alerts.csv`). View alerts on a monitor with the Streamlit dashboard:
+`streamlit run dashboard.py`.
+
+## Test without live traffic
+
+No IoT traffic handy? Generate a synthetic capture and run the full pipeline:
+
+```powershell
+python tests/make_test_pcap.py      # -> tests/sample_traffic.pcap (benign + floods)
+python tests/test_pipeline.py       # pcap -> features -> two-stage IDS -> labels
+```
+
+See [`tests/README.md`](tests/README.md) for replaying real attack pcaps too.
 
 ## Layout
 
-- `src/feature_engineering.py` — 27 engineered features (training path)
-- `src/fast_transform.py` — same features in numpy (fast inference)
-- `src/sample_data.py` — two-pass streaming sampler (per-class cap rule)
-- `src/train.py` — final training + metrics
-- `src/model_compare.py`, `src/debug_lgbm*.py` — model bake-off & LightGBM diagnosis
-- `artifacts/` — sampled data, models, reports
-- `docs/PROJECT_REPORT.md` — full report
+```
+requirements.txt              pinned deps (grouped: runtime / capture / dashboard / training)
+src/
+├── config.py                 core config: features, class maps, paths
+├── feature_engineering.py    27 engineered features (training path)
+├── fast_transform.py         same features in numpy (fast inference)
+├── sample_data.py            two-pass streaming sampler (per-class cap rule)
+├── train.py / train_8class.py   final training + metrics
+├── model_compare.py, debug_lgbm*.py, experiment.py, realistic_eval.py
+├── extractor/
+│   ├── pcap_to_features.py   dpkt pcap -> 46 CICIoT2023 features (live capture)
+│   ├── extract_all.py        multi-session extraction + dedup
+│   ├── train_proto_merged.py trains the 28-class Stage-2 + cross-capture test
+│   ├── save_anomaly_gate.py  trains/saves the Stage-1 benign gate
+│   └── *_test.py / *_compare.py  cross-capture & oversampling analysis
+└── deploy/
+    ├── predict.py            two-stage IDSModel (gate + attack classifier)
+    ├── ids_runner.py         live capture loop (tcpdump) + --replay test mode
+    └── dashboard.py          Streamlit live-alert dashboard
+tests/
+├── make_test_pcap.py         synthetic pcap generator (no live traffic needed)
+├── test_pipeline.py          end-to-end smoke test
+└── README.md                 how to test without real traffic
+artifacts/
+├── models/pathA/             DEPLOYABLE: 28-class model, gate, encoders, feature_list
+├── reports/                  metrics, confusion matrices, feature importances
+└── bench_flows.csv           small sample for the latency benchmark
+docs/
+├── PROJECT_REPORT.md         full report (data, model arc, honest limits)
+└── DEPLOYMENT_GUIDE.md       Pi setup, on-site calibration, monitoring
+```

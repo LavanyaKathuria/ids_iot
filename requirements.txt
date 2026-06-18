@@ -1,0 +1,21 @@
+# CICIoT2023 Two-Stage IDS — dependencies (tested versions)
+#   pip install -r requirements.txt
+#
+# Pi deployment needs only the RUNTIME + CAPTURE + (optional) DASHBOARD groups.
+# TRAINING is for the Windows/training box only — do NOT install it on the Pi.
+
+# ---- runtime / inference (REQUIRED on the Pi) ----
+scikit-learn==1.8.0     # MUST match: the .joblib models were pickled with 1.8.0
+numpy==2.4.6
+pandas==3.0.3
+joblib==1.5.3
+
+# ---- live capture / pcap extraction (REQUIRED on the Pi) ----
+dpkt==1.9.8             # pcap_to_features.py + tests/make_test_pcap.py
+
+# ---- monitoring dashboard (optional; on the Pi or the monitor machine) ----
+streamlit==1.58.0       # src/deploy/dashboard.py
+
+# ---- training only (NOT needed on the Pi) ----
+imbalanced-learn==0.14.1   # oversampling experiments (src/extractor/oversample_compare.py)
+scipy==1.17.1              # pulled in by scikit-learn / imbalanced-learn
