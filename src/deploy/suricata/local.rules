@@ -1,0 +1,40 @@
+# Example LOCAL Suricata rules for the IoT IDS (Phase 1).
+#
+# The heavy lifting is done by the ET Open ruleset (pulled by `suricata-update`).
+# These are a few illustrative, device-aware rules showing how to catch the
+# payload/Web attacks your flow-ML model CANNOT see (the signal is in the bytes,
+# not the flow stats). sids use the local range (1,000,000+).
+#
+# Install: copy to /var/lib/suricata/rules/local.rules (or /etc/suricata/rules/)
+# and add `- local.rules` under `rule-files:` in suricata.yaml, then restart.
+
+# --- Web payload attacks (the weak ML classes: SQLi / XSS / CmdInjection) -----
+alert http any any -> $HOME_NET any (msg:"LOCAL SQLi UNION SELECT in URI"; \
+  flow:to_server,established; http.uri; content:"union"; nocase; \
+  content:"select"; nocase; distance:0; classtype:web-application-attack; \
+  sid:1000001; rev:1;)
+
+alert http any any -> $HOME_NET any (msg:"LOCAL SQLi tautology ' OR 1=1"; \
+  flow:to_server,established; http.uri; content:"or 1=1"; nocase; \
+  classtype:web-application-attack; sid:1000002; rev:1;)
+
+alert http any any -> $HOME_NET any (msg:"LOCAL XSS script tag in request"; \
+  flow:to_server,established; http.uri; content:"<script"; nocase; \
+  classtype:web-application-attack; sid:1000003; rev:1;)
+
+alert http any any -> $HOME_NET any (msg:"LOCAL OS Command Injection in URI"; \
+  flow:to_server,established; http.uri; \
+  pcre:"/(\;|\||\x60|\$\()\s*(cat|wget|curl|nc|sh|bash|chmod|busybox)\b/i"; \
+  classtype:web-application-attack; sid:1000004; rev:1;)
+
+# --- IoT-specific: Mirai-style dropper + weak management protocols ------------
+alert http any any -> $HOME_NET any (msg:"LOCAL Mirai-style wget+chmod dropper"; \
+  flow:to_server,established; http.request_body; content:"wget"; nocase; \
+  content:"chmod"; nocase; classtype:trojan-activity; sid:1000005; rev:1;)
+
+alert tcp any any -> $HOME_NET 23 (msg:"LOCAL Telnet to IoT device (policy)"; \
+  flow:to_server; classtype:policy-violation; sid:1000006; rev:1;)
+
+alert tcp any any -> $HOME_NET 23 (msg:"LOCAL Telnet default-cred attempt (root)"; \
+  flow:to_server,established; content:"root"; depth:64; \
+  classtype:attempted-admin; sid:1000007; rev:1;)

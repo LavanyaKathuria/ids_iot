@@ -104,6 +104,23 @@ def to_proto_flood_merged(label: str) -> str:
     return PROTO_FLOOD_MERGE.get(label, label)
 
 
+# Reconnaissance scan merge: PingSweep + PortScan + OSScan are all active scans
+# that trigger the SAME operator response (block the scanner) and are not
+# reliably separable by flow features. HostDiscovery and VulnerabilityScan are
+# kept distinct (different intent/footprint).
+RECON_SCAN_MERGE = {
+    "Recon-PingSweep": "Recon-Scanning",
+    "Recon-PortScan":  "Recon-Scanning",
+    "Recon-OSScan":    "Recon-Scanning",
+}
+
+
+def to_final_merged(label: str) -> str:
+    """Deployable Stage-2 scheme: protocol-wise flood merge (incl. SynonymousIP
+    -> SYN_Flood) PLUS the recon-scan merge. -> 26 attack classes."""
+    return RECON_SCAN_MERGE.get(label, to_proto_flood_merged(label))
+
+
 # ---------------------------------------------------------------------------
 # Sampling configuration.
 # ---------------------------------------------------------------------------

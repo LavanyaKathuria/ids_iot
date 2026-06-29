@@ -93,7 +93,9 @@ src/
 └── deploy/
     ├── predict.py            two-stage IDSModel (gate + attack classifier)
     ├── ids_runner.py         live capture loop (tcpdump) + --replay test mode
-    └── dashboard.py          Streamlit live-alert dashboard
+    ├── dashboard.py          Streamlit live-alert dashboard
+    ├── suricata_collector.py Suricata eve.json -> alerts.csv bridge (Phase 1 DPI)
+    └── suricata/             local.rules (payload/Web DPI) + disable.conf (ruleset trim)
 tests/
 ├── make_test_pcap.py         synthetic pcap generator (no live traffic needed)
 ├── test_pipeline.py          end-to-end smoke test
@@ -104,5 +106,7 @@ artifacts/
 └── bench_flows.csv           small sample for the latency benchmark
 docs/
 ├── PROJECT_REPORT.md         full report (data, model arc, honest limits)
-└── DEPLOYMENT_GUIDE.md       Pi setup, on-site calibration, monitoring
+├── DEPLOYMENT_GUIDE.md       Pi setup, on-site calibration, monitoring
+├── SURICATA_SETUP.md         Phase 1: Suricata DPI alongside the ML model
+└── CAPTURE_PCAPS.md          how to capture IP + WiFi pcaps from the office net
 ```

@@ -174,6 +174,18 @@ Expect floods/Mirai → ~98% flagged and labelled correctly; benign → mostly
 
 ---
 
+## Part D — Layered detection: add Suricata DPI (Phase 1)
+The flow-ML model is blind to *payload* attacks (SQLi/XSS/command injection/
+malware) — that signal is in the packet bytes, not the flow statistics. Add
+**Suricata** beside it: rule-based, **needs no training data**, and writes to the
+**same `alerts.csv`** via `src/deploy/suricata_collector.py`, so both engines
+share this dashboard. Full steps: [`SURICATA_SETUP.md`](SURICATA_SETUP.md).
+```bash
+sudo apt install -y suricata && sudo suricata-update     # rules, not data
+sudo suricata -c /etc/suricata/suricata.yaml -i eth0     # passive IDS
+python3 src/deploy/suricata_collector.py --eve /var/log/suricata/eve.json --alerts alerts.csv
+```
+
 ## Notes & honest limits (see PROJECT_REPORT.md for detail)
 - **Latency:** batch flows (the runner does, per rotated file) → ~12 µs/flow.
   Single-flow on a Pi is ~15–24 ms; that's fine because the runner works in

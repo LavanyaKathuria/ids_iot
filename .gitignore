@@ -1,6 +1,8 @@
 # ===== Large data — NEVER push (GitHub rejects >100MB; these are GBs) =====
 CICIoT2023/
 pcap/
+Wifi_Model/data/
+Wifi_Model/office_pcap/
 *.pcap
 *.cap
 *.crdownload
@@ -19,6 +21,10 @@ artifacts/models/pathA/.gitkeep
 # ===== generated at runtime (rebuildable) =====
 alerts.csv
 tests/alerts.csv
+suricata_out/
+suri_batch/
+suri_probe/
+tests/flows/
 tests/sample_traffic.pcap        # rebuild with tests/make_test_pcap.py (also covered by *.pcap)
 
 # ===== python / notebooks =====
