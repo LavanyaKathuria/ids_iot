@@ -1,6 +1,7 @@
-"""Streamlit dashboard for the two-stage IDS — live alert view for a monitor.
+"""Streamlit dashboard for the IoT IDS — live alert view for a monitor.
 
-Reads the alerts CSV that ids_runner.py appends to (columns: ts,label,source)
+Model-agnostic: reads the alerts CSV that ids_runner.py appends to
+(columns: ts,label,source) — works with the flat or two-stage model.
 and refreshes on an interval. Run it on the monitor/computer, or on the Pi and
 open it from any browser on the LAN.
 
@@ -47,8 +48,8 @@ df = load()
 
 if df.empty:
     st.info("No alerts yet. Start the runner: "
-            "`sudo python3 ids_runner.py --iface eth0` "
-            "(or replay a pcap with `--replay`).")
+            "`sudo python3 ids_runner.py --flat --iface eth0` "
+            "(or replay a pcap with `--flat --replay`).")
 else:
     recent = df[df["ts"] > pd.Timestamp.now() - pd.Timedelta(minutes=1)]
     c1, c2, c3, c4 = st.columns(4)

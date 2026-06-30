@@ -26,7 +26,7 @@ for p in (HERE, os.path.join(ROOT, "src"), os.path.join(ROOT, "src", "extractor"
 
 import pandas as pd                                    # noqa: E402
 from pcap_to_features import extract_features          # noqa: E402
-from predict import IDSModel                           # noqa: E402
+from predict import IDSModel, FlatIDS                  # noqa: E402
 
 
 def score_pcap(ids, pcap, alerts_path, max_packets=None):
@@ -96,10 +96,13 @@ def main():
     ap.add_argument("--rotate", type=int, default=10, help="seconds per pcap (live)")
     ap.add_argument("--keep", type=int, default=6, help="rotated files to keep (live)")
     ap.add_argument("--cap-dir", default="/tmp/ids_cap")
+    ap.add_argument("--flat", action="store_true",
+                    help="use the flat port-agnostic model (no benign gate, no calibration)")
     args = ap.parse_args()
 
-    ids = IDSModel(models_dir=args.models)
-    print(f"loaded IDS (Stage-2 classes: {len(ids.le.classes_)})")
+    ids = FlatIDS(args.models) if args.flat else IDSModel(models_dir=args.models)
+    print(f"loaded {'FLAT' if args.flat else 'two-stage'} IDS "
+          f"({len(ids.le.classes_)} classes)")
     if args.replay:
         run_replay(ids, args.replay, args.alerts)
     else:

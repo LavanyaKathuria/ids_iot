@@ -121,6 +121,36 @@ def to_final_merged(label: str) -> str:
     return RECON_SCAN_MERGE.get(label, to_proto_flood_merged(label))
 
 
+# Fragmentation merge: ACK/UDP/ICMP fragmentation are flow-INDISTINGUISHABLE —
+# after the first fragment, packets carry NO L4 header, so the protocol can't be
+# recovered. Held-out testing confirmed the three bleed together (~15% each kept
+# separate -> 60% as one class). Same operator response (block the source). Same
+# rationale as the DoS/DDoS and recon-scan merges above.
+FRAG_MERGE = {
+    "DDoS-ACK_Fragmentation":  "DDoS-Fragmentation",
+    "DDoS-UDP_Fragmentation":  "DDoS-Fragmentation",
+    "DDoS-ICMP_Fragmentation": "DDoS-Fragmentation",
+}
+
+
+def to_deploy_merged(label: str) -> str:
+    """Final deployed scheme: to_final_merged PLUS the fragmentation merge.
+    -> 24 attack classes."""
+    return FRAG_MERGE.get(to_final_merged(label), to_final_merged(label))
+
+
+# Port-identity features: the application-protocol flags are just "is the dest
+# port 80/53/22/..." indicators. The model can take a spurious "port -> attack"
+# shortcut on them (e.g. a SYN flood to :80 -> HTTP_Flood, a UDP flood to :53 ->
+# DNS_Spoofing) that breaks when an attack hits a non-standard port. The
+# port-agnostic flat classifier EXCLUDES these and judges by behaviour (rate,
+# flags, sizes, counts, transport protocol). Verified: dropping them costs ~1%
+# in-distribution F1 but makes floods robust on any port. l7_proto_count /
+# tcp_no_l7 / udp_no_l7 are engineered from the same port flags, so they go too.
+PORT_FEATURES = ["HTTP", "HTTPS", "DNS", "Telnet", "SMTP", "SSH", "IRC", "DHCP",
+                 "l7_proto_count", "tcp_no_l7", "udp_no_l7"]
+
+
 # ---------------------------------------------------------------------------
 # Sampling configuration.
 # ---------------------------------------------------------------------------

@@ -96,6 +96,35 @@ class IDSModel:
         return self
 
 
+class FlatIDS:
+    """Single-stage FLAT port-agnostic classifier (NO anomaly gate).
+
+    Loads flat_dtree_portagnostic.joblib + label_encoder_flat.joblib +
+    feature_list_behavioral.json. Every window is classified directly as
+    'BenignTraffic' or one of the 24 attack classes. Use this when on-site benign
+    calibration for the two-stage gate isn't available. `predict`/`predict_detailed`
+    match IDSModel's signatures, so ids_runner.py and dashboard.py work unchanged.
+    """
+    def __init__(self, models_dir: str | None = None):
+        models_dir = models_dir or os.path.join(C.MODELS_DIR, "pathA")
+        self.model = joblib.load(os.path.join(models_dir, "flat_dtree_portagnostic.joblib"))
+        self.le = joblib.load(os.path.join(models_dir, "label_encoder_flat.joblib"))
+        with open(os.path.join(models_dir, "feature_list_behavioral.json")) as fh:
+            self.features = json.load(fh)
+        if hasattr(self.model, "feature_names_in_"):
+            del self.model.feature_names_in_
+
+    def predict(self, flow_df: pd.DataFrame) -> np.ndarray:
+        return self.le.inverse_transform(self.model.predict(build_matrix(flow_df, self.features)))
+
+    def predict_detailed(self, flow_df: pd.DataFrame) -> pd.DataFrame:
+        labels = self.predict(flow_df)
+        anom = labels != C.BENIGN_LABEL
+        return pd.DataFrame({"is_anomaly": anom,
+                             "attack_type": np.where(anom, labels, ""),
+                             "label": labels})
+
+
 def _benchmark(csv_path: str) -> None:
     ids = IDSModel()
     df = pd.read_csv(csv_path)

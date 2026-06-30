@@ -105,8 +105,10 @@ artifacts/
 ├── reports/                  metrics, confusion matrices, feature importances
 └── bench_flows.csv           small sample for the latency benchmark
 docs/
+├── MODEL_OVERVIEW.md         current model: data, 62 features, algorithm, technique
+├── DEPLOYMENT_GUIDE.md       Pi setup + flat model + monitoring (no Suricata)
+├── DATA_COLLECTION.md        hping/nmap capture cmds, tcpdump, pcap -> ids_runner
 ├── PROJECT_REPORT.md         full report (data, model arc, honest limits)
-├── DEPLOYMENT_GUIDE.md       Pi setup, on-site calibration, monitoring
-├── SURICATA_SETUP.md         Phase 1: Suricata DPI alongside the ML model
-└── CAPTURE_PCAPS.md          how to capture IP + WiFi pcaps from the office net
+├── CAPTURE_PCAPS.md          how to capture IP + WiFi pcaps from the office net
+└── SURICATA_SETUP.md         optional/parked: Suricata DPI (not in the pipeline)
 ```
