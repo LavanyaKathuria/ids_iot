@@ -34,6 +34,64 @@ sudo tcpdump -i eth0 "dst host 192.168.0.100" -w captures/<name>.pcap
 
 ---
 
+## ⚠️ Capture placement — this makes or breaks the result
+
+**The single biggest cause of bad results is capturing where the sensor can't see
+the attack.** The model classifies each 10-packet window by what's *in* it — if the
+window is full of background instead of attack, everything misclassifies (floods
+come out as scans, scans as nothing, etc.).
+
+### Correct: capture ON the victim (or on a mirror port feeding the monitor)
+The recommended command **run on the victim itself** — it receives 100% of the
+attack (the packets are addressed to it):
+```bash
+sudo ip link set eth0 promisc on                     # promiscuous mode
+sudo tcpdump -i eth0 "dst host 192.168.0.100" -w captures/<name>.pcap
+```
+This is what produces clean, correctly-classified captures.
+
+### The problem with a separate monitor on a switch
+If the capture runs on a **different machine** (e.g. a separate Ubuntu monitor)
+plugged normally into a **switch**, that machine **does not receive the
+attacker→victim unicast traffic** — the switch only forwards those packets to the
+*victim's* port. The monitor then sees only **broadcast + background**, so the
+windows are background, not attack → **misclassification**. This is exactly why an
+office capture failed while an on-victim capture of the *same attack* classified
+correctly.
+
+To use a separate monitor, it must be **fed** the traffic — one of:
+- a switch **SPAN / mirror port** mirroring the victim's / IoT VLAN to the monitor,
+- **inline** placement (monitor/Pi in the traffic path), or
+- a shared segment (old hub). *(Wi-Fi monitor mode gives 802.11-framed, WPA2-encrypted
+  frames — unusable for this IP model.)*
+In all cases the capture interface must be in **promiscuous mode**.
+
+### Secondary factor: a victim with no firewall replies
+A firewalled Windows victim silently drops the attack → **no replies** → clean,
+one-directional capture. A **Raspberry Pi (no firewall by default) replies**
+(RST/SYN-ACK/ICMP echo) → the capture is bidirectional, which can muddy the class.
+The `dst host <victim>` filter mitigates this by keeping only inbound attack packets.
+
+### Verify the capture point actually sees the attack (30-second check)
+On the machine you intend to capture on, **during an attack**:
+```bash
+sudo tcpdump -i eth0 "dst host 192.168.0.100" -c 20
+```
+- **packets stream in** → the point sees the attack → captures will classify. ✅
+- **nothing / only broadcast** → blind to the attack (no mirror port) → fix placement.
+
+And check a suspect capture is attack-heavy, not background:
+```bash
+python src/extractor/diagnose_flood.py captures/<name>.pcap
+# expect real Rate / syn_count etc. — if it's all near-zero background, the sensor
+# wasn't seeing the attack.
+```
+Decisive test: capture the *same* attack **on the victim** with the `dst host`
+filter and classify it — if that's correct but your monitor capture isn't, the
+monitor placement (not the model) is the problem.
+
+---
+
 ## Step 2 — Generate the attack (on the attacker)
 
 Start the capture first, run the attack ~20–30 s, then `Ctrl+C` both. These are
